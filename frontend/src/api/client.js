@@ -1,4 +1,4 @@
-const API_BASE = '/api';
+const API_BASE = 'https://campusfind-vi6i.onrender.com/api';
 
 export async function apiRequest(endpoint, options = {}) {
   const token = localStorage.getItem('campusfind_token');
