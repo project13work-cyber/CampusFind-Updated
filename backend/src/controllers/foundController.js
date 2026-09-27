@@ -255,13 +255,16 @@ const updateFoundItem = async (req, res) => {
       } catch (e) {}
     }
 
-    if (req.files && req.files.length > 0) {
-      req.files.forEach((f) => {
-        item.images.push(
-          `https://campusfind-vi6i.onrender.com/uploads/${f.filename}`,
-        );
-      });
-    }
+    // Process uploaded images
+const images = [];
+
+if (req.files && req.files.length > 0) {
+  req.files.forEach((file) => {
+    images.push(
+      `https://campusfind-vi6i.onrender.com/uploads/${file.filename}`
+    );
+  });
+}
 
     await item.save();
 
