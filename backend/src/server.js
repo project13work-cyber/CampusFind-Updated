@@ -58,10 +58,7 @@ if (process.env.NODE_ENV !== 'production') {
   app.use(morgan('dev'));
 }
 
-// Local-disk uploads are wiped on every deploy/restart on hosts like Render.
-if (process.env.NODE_ENV === 'production' && !require('./services/imageStorage').isCloudinaryConfigured()) {
-  console.warn('[Uploads] Cloudinary is not configured: images are saved to local disk and WILL BE LOST on redeploy.');
-}
+
 
 // Serve uploaded images statically
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
