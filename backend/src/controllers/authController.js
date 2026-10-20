@@ -22,45 +22,79 @@ const validatePasswordStrength = (password) => {
   return null;
 };
 
+const isStr = (v) => typeof v === 'string';
+
+// Turns Mongo/Mongoose errors into friendly 4xx replies instead of a generic 500
+const sendAuthError = (res, error, fallbackMessage) => {
+  if (error && error.code === 11000) {
+    return res.status(409).json({
+      success: false,
+      message: 'An account with this Gmail address already exists.'
+    });
+  }
+  if (error && error.name === 'ValidationError') {
+    return res.status(400).json({
+      success: false,
+      message: Object.values(error.errors).map((e) => e.message).join(' ')
+    });
+  }
+  console.error(`[Auth] ${fallbackMessage}:`, error);
+  return res.status(500).json({
+    success: false,
+    message: fallbackMessage,
+    error: process.env.NODE_ENV === 'production' ? undefined : error.message
+  });
+};
+
 // POST /api/auth/register
 const register = async (req, res) => {
   try {
-    const { name, email, studentId, phone, password, confirmPassword } = req.body;
+    const { name, email, studentId, phone, password, confirmPassword } = req.body || {};
 
-    if (!name || !email || !studentId || !phone || !password) {
+    if (![name, email, studentId, phone, password].every(isStr) ||
+        ![name, email, studentId, phone, password].every((v) => v.trim())) {
       return res.status(400).json({
         success: false,
         message: 'All fields (Name, Gmail, Student ID, Phone, Password) are required.'
       });
     }
 
-    // Strict Gmail validation
+    const cleanName = name.trim().replace(/\s+/g, ' ');
+    if (cleanName.length < 2 || cleanName.length > 100) {
+      return res.status(400).json({ success: false, message: 'Name must be between 2 and 100 characters.' });
+    }
+
     const normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedEmail.endsWith('@gmail.com') || !/^[^\s@]+@gmail\.com$/i.test(normalizedEmail)) {
+    if (!/^[^\s@]+@gmail\.com$/i.test(normalizedEmail)) {
+      return res.status(400).json({ success: false, message: 'Please use a Gmail address ending with @gmail.com.' });
+    }
+
+    const cleanStudentId = studentId.trim().toUpperCase();
+    if (!/^[A-Z0-9][A-Z0-9\-_/.]{1,29}$/.test(cleanStudentId)) {
       return res.status(400).json({
         success: false,
-        message: 'Please use a Gmail address ending with @gmail.com.'
+        message: 'Student ID may only contain letters, numbers, - _ / . (2-30 characters).'
       });
     }
 
+    const cleanPhone = phone.trim();
+    const phoneDigits = cleanPhone.replace(/\D/g, '');
+    if (!/^[+\d][\d\s()-]*$/.test(cleanPhone) || phoneDigits.length < 10 || phoneDigits.length > 15) {
+      return res.status(400).json({ success: false, message: 'Please enter a valid phone number (10-15 digits).' });
+    }
+
     if (password !== confirmPassword) {
-      return res.status(400).json({
-        success: false,
-        message: 'Passwords do not match.'
-      });
+      return res.status(400).json({ success: false, message: 'Passwords do not match.' });
     }
 
     const passwordError = validatePasswordStrength(password);
     if (passwordError) {
-      return res.status(400).json({
-        success: false,
-        message: passwordError
-      });
+      return res.status(400).json({ success: false, message: passwordError });
     }
 
     const existingUser = await User.findOne({ email: normalizedEmail });
     if (existingUser) {
-      return res.status(400).json({
+      return res.status(409).json({
         success: false,
         message: 'An account with this Gmail address already exists.'
       });
@@ -70,10 +104,10 @@ const register = async (req, res) => {
     const passwordHash = await bcrypt.hash(password, salt);
 
     const user = await User.create({
-      name: name.trim(),
+      name: cleanName,
       email: normalizedEmail,
-      studentId: studentId.trim().toUpperCase(),
-      phone: phone.trim(),
+      studentId: cleanStudentId,
+      phone: cleanPhone,
       passwordHash,
       role: 'STUDENT',
       isEmailVerified: true
@@ -95,20 +129,15 @@ const register = async (req, res) => {
       }
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: 'Server error during registration',
-      error: error.message
-    });
+    return sendAuthError(res, error, 'Server error during registration');
   }
 };
 
 // POST /api/auth/login
 const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
+    const { email, password } = req.body || {};
+    if (!isStr(email) || !isStr(password) || !email.trim() || !password) {
       return res.status(400).json({
         success: false,
         message: 'Please provide both email and password.'

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CampusMap from '../components/map/CampusMap';
 import api from '../api/client';
+import { validateImageFiles } from '../api/imageValidation';
 import Button from '../components/common/Button';
 import confetti from 'canvas-confetti';
 import {
@@ -66,15 +67,17 @@ export default function ReportLost() {
   const [previewUrls, setPreviewUrls] = useState([]);
 
   // When
-  const [lostDate, setLostDate] = useState(new Date().toISOString().split('T')[0]);
-  const [approxTime, setApproxTime] = useState('1:15 PM');
-  const [timeRange, setTimeRange] = useState('1:00 PM - 2:00 PM');
+  // When
+  const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
+  const [lostDate, setLostDate] = useState(today);
+  const [approxTime, setApproxTime] = useState('');
+  const [timeRange, setTimeRange] = useState('');
 
   // Exact Location
   const [locationName, setLocationName] = useState('College Canteen');
-  const [zone, setZone] = useState('Dining Tables 4 - 6 (Central Wing)');
+  const [zone, setZone] = useState('');
   const [mapCoordinates, setMapCoordinates] = useState({ x: 310, y: 370 });
-  const [exactSpot, setExactSpot] = useState('Table 5 near chair corner');
+  const [exactSpot, setExactSpot] = useState('');
 
   // Private Identifier
   const [privateIdentifier, setPrivateIdentifier] = useState('');
@@ -85,16 +88,21 @@ export default function ReportLost() {
   const [success, setSuccess] = useState(false);
 
   const handleImageSelect = (e) => {
-    if (e.target.files) {
-      const filesArray = Array.from(e.target.files);
-      setImages((prev) => [...prev, ...filesArray]);
+    const picked = e.target.files ? Array.from(e.target.files) : [];
+    e.target.value = ''; // lets you pick the same file again after removing it
+    if (picked.length === 0) return;
 
-      const newPreviews = filesArray.map((file) => URL.createObjectURL(file));
-      setPreviewUrls((prev) => [...prev, ...newPreviews]);
+    const { accepted, error: imageError } = validateImageFiles(images, picked, { maxFiles: 5 });
+    setError(imageError);
+
+    if (accepted.length > 0) {
+      setImages((prev) => [...prev, ...accepted]);
+      setPreviewUrls((prev) => [...prev, ...accepted.map((file) => URL.createObjectURL(file))]);
     }
   };
 
   const removeImage = (index) => {
+    URL.revokeObjectURL(previewUrls[index]);
     setImages((prev) => prev.filter((_, i) => i !== index));
     setPreviewUrls((prev) => prev.filter((_, i) => i !== index));
   };
@@ -122,7 +130,7 @@ export default function ReportLost() {
       formData.append('approxTime', approxTime.trim());
       formData.append('timeRange', timeRange.trim());
       formData.append('locationName', locationName);
-      formData.append('zone', zone);
+      formData.append('zone', locationName === 'College Canteen' ? zone : '');
       formData.append('mapCoordinates', JSON.stringify(mapCoordinates));
       formData.append('exactSpot', exactSpot.trim());
       formData.append('privateIdentifier', privateIdentifier.trim());
@@ -140,7 +148,7 @@ export default function ReportLost() {
             spread: 70,
             origin: { y: 0.6 }
           });
-        } catch (e) {}
+        } catch (e) { }
 
         setTimeout(() => {
           navigate('/my-reports');
@@ -183,17 +191,15 @@ export default function ReportLost() {
               key={s.num}
               type="button"
               onClick={() => setCurrentStep(s.num)}
-              className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-                currentStep === s.num
-                  ? 'bg-rose-500 text-white shadow-sm'
-                  : currentStep > s.num
+              className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${currentStep === s.num
+                ? 'bg-rose-500 text-white shadow-sm'
+                : currentStep > s.num
                   ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40'
                   : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
-              }`}
+                }`}
             >
-              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${
-                currentStep === s.num ? 'bg-white text-rose-600 font-black' : currentStep > s.num ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
-              }`}>
+              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${currentStep === s.num ? 'bg-white text-rose-600 font-black' : currentStep > s.num ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                }`}>
                 {currentStep > s.num ? '✓' : s.num}
               </span>
               <span>{s.label}</span>
@@ -245,11 +251,10 @@ export default function ReportLost() {
                       setCategory(cat.name);
                       setCurrentStep(2);
                     }}
-                    className={`p-4 rounded-2xl border text-center transition-all flex flex-col items-center justify-center gap-2 cursor-pointer group ${
-                      category === cat.name
-                        ? 'bg-rose-50/80 dark:bg-rose-950/40 border-rose-500 text-rose-700 dark:text-rose-300 shadow-md shadow-rose-500/10 scale-105'
-                        : 'bg-slate-50/60 dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600 hover:-translate-y-1'
-                    }`}
+                    className={`p-4 rounded-2xl border text-center transition-all flex flex-col items-center justify-center gap-2 cursor-pointer group ${category === cat.name
+                      ? 'bg-rose-50/80 dark:bg-rose-950/40 border-rose-500 text-rose-700 dark:text-rose-300 shadow-md shadow-rose-500/10 scale-105'
+                      : 'bg-slate-50/60 dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600 hover:-translate-y-1'
+                      }`}
                   >
                     <span className="text-3xl filter drop-shadow-sm group-hover:scale-110 transition-transform">{cat.icon}</span>
                     <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200">{cat.name}</span>
@@ -412,6 +417,7 @@ export default function ReportLost() {
                     <input
                       type="date"
                       required
+                      max={today}
                       value={lostDate}
                       onChange={(e) => setLostDate(e.target.value)}
                       className="w-full pl-10 pr-3.5 py-3 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
@@ -537,7 +543,7 @@ export default function ReportLost() {
                 <label className="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-rose-500 bg-slate-50/70 dark:bg-slate-800/60 hover:bg-rose-50/30 rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer transition-all">
                   <Upload className="w-8 h-8 text-rose-500 mb-2" />
                   <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Click or drag photos to upload</span>
-                  <span className="text-[11px] text-slate-400 mt-1">JPEG, PNG, WEBP (Max 5MB each)</span>
+                  <span className="text-[11px] text-slate-400 mt-1">JPG, PNG, WEBP (max 5 MB each, up to 5 photos)</span>
                   <input
                     type="file"
                     multiple
@@ -630,8 +636,8 @@ export default function ReportLost() {
                 <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-1.5">
                   <span className="text-slate-400 font-bold uppercase text-[10px] block">Location & Timestamp</span>
                   <p className="font-extrabold text-sm text-slate-900 dark:text-white">{locationName}</p>
-                  <p className="text-slate-600 dark:text-slate-300">{zone} • {lostDate} ({approxTime})</p>
-                </div>
+                  <p className="text-slate-600 dark:text-slate-300">{zone ? `${zone} • ` : ''}{lostDate}{approxTime ? ` (${approxTime})` : ''}</p>                
+                  </div>
               </div>
 
               {privateIdentifier && (

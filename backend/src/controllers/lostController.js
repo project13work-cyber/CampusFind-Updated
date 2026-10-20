@@ -203,7 +203,7 @@ const updateLostItem = async (req, res) => {
     const updatableFields = [
       'itemName', 'category', 'brand', 'model', 'color', 'quantity',
       'description', 'lostDate', 'approxTime', 'timeRange', 'locationName',
-      'zone', 'exactSpot', 'privateIdentifier', 'status'
+      'zone', 'exactSpot', 'privateIdentifier', 
     ];
 
     updatableFields.forEach(field => {

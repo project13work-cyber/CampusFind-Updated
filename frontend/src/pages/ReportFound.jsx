@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CampusMap from '../components/map/CampusMap';
 import api from '../api/client';
+import { validateImageFiles } from '../api/imageValidation';
 import Button from '../components/common/Button';
 import confetti from 'canvas-confetti';
 import {
@@ -71,14 +72,15 @@ export default function ReportFound() {
   const [previewUrls, setPreviewUrls] = useState([]);
 
   // When
-  const [foundDate, setFoundDate] = useState(new Date().toISOString().split('T')[0]);
-  const [foundTime, setFoundTime] = useState('11:00 AM');
+  const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
+  const [foundDate, setFoundDate] = useState(today);
+  const [foundTime, setFoundTime] = useState('');
 
   // Exact Location
   const [locationName, setLocationName] = useState('College Canteen');
-  const [zone, setZone] = useState('Dining Tables 1 - 3 (North Wing)');
+  const [zone, setZone] = useState('');
   const [mapCoordinates, setMapCoordinates] = useState({ x: 310, y: 160 });
-  const [exactSpot, setExactSpot] = useState('Table 2 near window');
+  const [exactSpot, setExactSpot] = useState('');
 
   // Custody
   const [currentLocation, setCurrentLocation] = useState('Submitted to Security Office');
@@ -93,16 +95,21 @@ export default function ReportFound() {
   const [success, setSuccess] = useState(false);
 
   const handleImageSelect = (e) => {
-    if (e.target.files) {
-      const filesArray = Array.from(e.target.files);
-      setImages((prev) => [...prev, ...filesArray]);
+    const picked = e.target.files ? Array.from(e.target.files) : [];
+    e.target.value = ''; // lets you pick the same file again after removing it
+    if (picked.length === 0) return;
 
-      const newPreviews = filesArray.map((file) => URL.createObjectURL(file));
-      setPreviewUrls((prev) => [...prev, ...newPreviews]);
+    const { accepted, error: imageError } = validateImageFiles(images, picked, { maxFiles: 5 });
+    setError(imageError);
+
+    if (accepted.length > 0) {
+      setImages((prev) => [...prev, ...accepted]);
+      setPreviewUrls((prev) => [...prev, ...accepted.map((file) => URL.createObjectURL(file))]);
     }
   };
 
   const removeImage = (index) => {
+    URL.revokeObjectURL(previewUrls[index]);
     setImages((prev) => prev.filter((_, i) => i !== index));
     setPreviewUrls((prev) => prev.filter((_, i) => i !== index));
   };
@@ -128,7 +135,7 @@ export default function ReportFound() {
       formData.append('foundDate', foundDate);
       formData.append('foundTime', foundTime.trim());
       formData.append('locationName', locationName);
-      formData.append('zone', zone);
+      formData.append('zone', locationName === 'College Canteen' ? zone : '');
       formData.append('mapCoordinates', JSON.stringify(mapCoordinates));
       formData.append('exactSpot', exactSpot.trim());
       formData.append('currentLocation', currentLocation);
@@ -148,7 +155,7 @@ export default function ReportFound() {
             spread: 75,
             origin: { y: 0.6 }
           });
-        } catch (e) {}
+        } catch (e) { }
 
         setTimeout(() => {
           navigate('/my-reports');
@@ -191,22 +198,20 @@ export default function ReportFound() {
               key={s.num}
               type="button"
               onClick={() => setCurrentStep(s.num)}
-              className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-                currentStep === s.num
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : currentStep > s.num
+              className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${currentStep === s.num
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : currentStep > s.num
                   ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40'
                   : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
-              }`}
+                }`}
             >
               <span
-                className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${
-                  currentStep === s.num
-                    ? 'bg-white text-emerald-700 font-black'
-                    : currentStep > s.num
+                className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${currentStep === s.num
+                  ? 'bg-white text-emerald-700 font-black'
+                  : currentStep > s.num
                     ? 'bg-emerald-500 text-white'
                     : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
-                }`}
+                  }`}
               >
                 {currentStep > s.num ? '✓' : s.num}
               </span>
@@ -259,11 +264,10 @@ export default function ReportFound() {
                       setCategory(cat.name);
                       setCurrentStep(2);
                     }}
-                    className={`p-4 rounded-2xl border text-center transition-all flex flex-col items-center justify-center gap-2 cursor-pointer group ${
-                      category === cat.name
-                        ? 'bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-500 text-emerald-700 dark:text-emerald-300 shadow-md shadow-emerald-500/10 scale-105'
-                        : 'bg-slate-50/60 dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600 hover:-translate-y-1'
-                    }`}
+                    className={`p-4 rounded-2xl border text-center transition-all flex flex-col items-center justify-center gap-2 cursor-pointer group ${category === cat.name
+                      ? 'bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-500 text-emerald-700 dark:text-emerald-300 shadow-md shadow-emerald-500/10 scale-105'
+                      : 'bg-slate-50/60 dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600 hover:-translate-y-1'
+                      }`}
                   >
                     <span className="text-3xl filter drop-shadow-sm group-hover:scale-110 transition-transform">{cat.icon}</span>
                     <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200">{cat.name}</span>
@@ -449,6 +453,7 @@ export default function ReportFound() {
                     <input
                       type="date"
                       required
+                      max={today}
                       value={foundDate}
                       onChange={(e) => setFoundDate(e.target.value)}
                       className="w-full pl-10 pr-3.5 py-3 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
@@ -561,7 +566,7 @@ export default function ReportFound() {
                 <label className="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-500 bg-slate-50/70 dark:bg-slate-800/60 hover:bg-emerald-50/30 rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer transition-all">
                   <Upload className="w-8 h-8 text-emerald-600 dark:text-emerald-400 mb-2" />
                   <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Click or drag photos of found item</span>
-                  <span className="text-[11px] text-slate-400 mt-1">JPEG, PNG, WEBP (Max 5MB each)</span>
+                  <span className="text-[11px] text-slate-400 mt-1">JPG, PNG, WEBP (max 5 MB each, up to 5 photos)</span>
                   <input
                     type="file"
                     multiple
@@ -654,7 +659,7 @@ export default function ReportFound() {
                 <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-1.5">
                   <span className="text-slate-400 font-bold uppercase text-[10px] block">Discovery Location & Time</span>
                   <p className="font-extrabold text-sm text-slate-900 dark:text-white">{locationName}</p>
-                  <p className="text-slate-600 dark:text-slate-300">{zone} • {foundDate} ({foundTime})</p>
+                  <p className="text-slate-600 dark:text-slate-300">{zone ? `${zone} • ` : ''}{foundDate}{foundTime ? ` (${foundTime})` : ''}</p>
                 </div>
 
                 <div className="sm:col-span-2 p-4 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-800/40 space-y-1.5">

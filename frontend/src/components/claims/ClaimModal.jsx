@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, ShieldAlert, Upload, CheckCircle2, AlertCircle, Loader2, Sparkles, Handshake } from 'lucide-react';
-import api from '../../api/client';
+import api, { resolveImageUrl } from '../../api/client';
+import { validateImageFiles } from '../../api/imageValidation';
 import Button from '../common/Button';
 
 export default function ClaimModal({ item, lostItemId, matchId, isOpen, onClose, onSuccess }) {
@@ -15,9 +16,13 @@ export default function ClaimModal({ item, lostItemId, matchId, isOpen, onClose,
   if (!isOpen || !item) return null;
 
   const handleFileChange = (e) => {
-    if (e.target.files) {
-      setProofFiles(Array.from(e.target.files));
-    }
+    const picked = e.target.files ? Array.from(e.target.files) : [];
+    e.target.value = ''; // lets you pick the same file again
+    if (picked.length === 0) return;
+
+    const { accepted, error: imageError } = validateImageFiles([], picked, { maxFiles: 3 });
+    setError(imageError);
+    if (accepted.length > 0) setProofFiles(accepted);
   };
 
   const handleSubmit = async (e) => {
@@ -47,6 +52,11 @@ export default function ClaimModal({ item, lostItemId, matchId, isOpen, onClose,
       if (res.success) {
         setSuccessMessage('Ownership claim submitted successfully! Campus administrators and security will verify your details.');
         setTimeout(() => {
+          setWhereLost('');
+          setUniqueFeatures('');
+          setInsideOrAttached('');
+          setProofFiles([]);
+          setSuccessMessage('');
           if (onSuccess) onSuccess();
           onClose();
         }, 1800);
@@ -89,7 +99,7 @@ export default function ClaimModal({ item, lostItemId, matchId, isOpen, onClose,
         <div className="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 mb-5 flex items-center gap-3 text-xs text-slate-600 dark:text-slate-300">
           {item.images && item.images[0] && (
             <img
-              src={item.images[0]}
+              src={resolveImageUrl(item.images[0])}
               alt={item.itemName}
               className="w-14 h-14 rounded-xl object-cover shrink-0 border border-slate-200 dark:border-slate-700"
             />
@@ -179,8 +189,7 @@ export default function ClaimModal({ item, lostItemId, matchId, isOpen, onClose,
               <span className="text-xs text-slate-700 dark:text-slate-300 font-semibold">
                 {proofFiles.length > 0 ? `${proofFiles.length} file(s) selected` : 'Click to select proof images'}
               </span>
-              <span className="text-[10px] text-slate-400">JPG, PNG up to 5MB</span>
-              <input
+              <span className="text-[10px] text-slate-400">JPG, PNG, WEBP up to 5 MB each (max 3)</span>              <input
                 type="file"
                 multiple
                 accept="image/*"
